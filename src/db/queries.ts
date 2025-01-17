@@ -466,7 +466,7 @@ export const fetchLessons = async () => {
 
 export const fetchLessonById = async (
   lessonId: number
-): Promise<typeof lessons.$inferSelect & { courseId: number }> => {
+): Promise<(typeof lessons.$inferSelect & { courseId: number }) | null> => {
   try {
     const data = await db.query.lessons.findFirst({
       where: eq(lessons.id, lessonId),
@@ -474,6 +474,7 @@ export const fetchLessonById = async (
         unit: true,
       },
     });
+    if(!data) return null
     const courseId = data?.unit.courseId;
     return {
       ...data,
@@ -559,7 +560,7 @@ export const fetchChallenges = async () => {
 
 export const fetchChallengeById = async (
   challengeId: number
-): Promise<typeof challenges.$inferSelect & { courseId: number }> => {
+): Promise<(typeof challenges.$inferSelect & { courseId: number }) | null> => {
   try {
     const data = await db.query.challenges.findFirst({
       where: eq(challenges.id, challengeId),
@@ -577,6 +578,7 @@ export const fetchChallengeById = async (
         // challengeOptions: true,
       },
     });
+    if(!data) return null
     const courseId = data?.lesson.unit.courseId;
     delete (data as any)?.lesson;
     return {

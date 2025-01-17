@@ -1,4 +1,10 @@
-import { checkIfPermitted, fetchCourseById, fetchUnitById, fetchUnits2, mutateUnit } from "@/db/queries";
+import {
+  checkIfPermitted,
+  fetchCourseById,
+  fetchUnitById,
+  fetchUnits2,
+  mutateUnit,
+} from "@/db/queries";
 import type { units } from "@/db/schema";
 import type { NextFunction, Request, Response } from "express";
 
@@ -41,6 +47,10 @@ export const getUnitById = async (
   }
   try {
     const data = await fetchUnitById(unitId);
+    if (!data) {
+      res.status(404).json("Not Found");
+      return next();
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json("Internal Server Error");
@@ -67,21 +77,21 @@ export const createUnit = async (
   }
 
   try {
-    const course = await fetchCourseById(unitData.courseId)
+    const course = await fetchCourseById(unitData.courseId);
     if (!course) {
-      res.status(400).json(`Invalid course.`)
-      return next()
+      res.status(400).json(`Invalid course.`);
+      return next();
     }
 
-    const hasPermission = await checkIfPermitted(userId, unitData.courseId)
+    const hasPermission = await checkIfPermitted(userId, unitData.courseId);
 
     if (!hasPermission) {
       res.json({ error: "permission" });
       return next();
     }
 
-    await mutateUnit('create', { unit: unitData })
-    res.status(201).json("Unit has been created successfully.")
+    await mutateUnit("create", { unit: unitData });
+    res.status(201).json("Unit has been created successfully.");
   } catch (error) {
     res.status(500).json("Internal Server Error.");
   }
@@ -102,12 +112,12 @@ export const updateUnit = async (
   }
 
   const unitData = unitResolver(req.body);
-  const courseId = unitData.courseId
+  const courseId = unitData.courseId;
 
   try {
     let unit: typeof units.$inferSelect | undefined;
     if (!courseId) {
-      unit = await fetchUnitById(unitId)
+      unit = await fetchUnitById(unitId);
     }
     const course = await fetchCourseById(courseId || unit?.courseId!);
     if (courseId && !course) {
@@ -144,16 +154,16 @@ export const deleteUnit = async (
   }
 
   try {
-    const unit = await fetchUnitById(unitId)
+    const unit = await fetchUnitById(unitId);
 
     if (unit) {
       const hasPermission = await checkIfPermitted(userId, unit.courseId);
-  
+
       if (!hasPermission) {
         res.json({ error: "permission" });
         return next();
       }
-  
+
       await mutateUnit("delete", { unitId: unit.id });
     }
     res.json("Unit deleted successfully.");

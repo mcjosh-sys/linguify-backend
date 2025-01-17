@@ -47,6 +47,10 @@ export const getLessonById = async (
 
   try {
     const data = await fetchLessonById(lessonId);
+    if (!data) {
+      res.status(404).json("Not Found");
+      return next();
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json("Internal Server Error");
@@ -111,7 +115,7 @@ export const updateLesson = async (
 
   try {
     let unit: typeof units.$inferInsert | undefined;
-    
+
     if (lessonData.unitId) unit = await fetchUnitById(lessonData.unitId);
     const lesson = await fetchLessonById(lessonId);
 
@@ -120,7 +124,7 @@ export const updateLesson = async (
       return next();
     }
 
-    const hasPermission = await checkIfPermitted(userId, lesson.courseId);
+    const hasPermission = await checkIfPermitted(userId, lesson?.courseId);
 
     if (!hasPermission) {
       res.json({ error: "permission" });
@@ -151,7 +155,7 @@ export const deleteLesson = async (
   try {
     const lesson = await fetchLessonById(lessonId);
 
-    const hasPermission = await checkIfPermitted(userId, lesson.courseId);
+    const hasPermission = await checkIfPermitted(userId, lesson?.courseId);
 
     if (!hasPermission) {
       res.json({ error: "permission" });

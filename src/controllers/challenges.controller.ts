@@ -33,7 +33,7 @@ export const getChallengeProgress = async (
     return;
   }
   try {
-    const challenge = fetchChallenge(challengeId);
+    const challenge = await fetchChallenge(challengeId);
     if (!challenge) {
       res.status(404).send("Challenge not found");
       return next();
@@ -81,7 +81,7 @@ export const insertChallengeProgress = async (
       return next();
     }
 
-    await upsertChallengeProgress(challengeId, currentUserProgress!);
+    await upsertChallengeProgress(challengeId, currentUserProgress);
     res.status(201).json();
   } catch (error) {
     res.status(500).json("Internal Server Error");
@@ -119,21 +119,15 @@ export const updateChallengeProgress = async (
       return next();
     }
 
-    const lessonId = challenge?.lessonId;
 
     const existingChallengeProgress = await fetchChallengeProgress(
       userId,
       challengeId
     );
 
-    //   const isPractice = !!existingChallengeProgress
-
-    //   if (currentUserProgress?.hearts === 0 && !isPractice) {
-
-    //   }
     await upsertChallengeProgress(
       challengeId,
-      currentUserProgress!,
+      currentUserProgress,
       existingChallengeProgress
     );
     res.status(200).json();
@@ -169,6 +163,10 @@ export const getChallengeById = async (
   }
   try {
     const data = await fetchChallengeById(challengeId);
+    if (!data) {
+      res.status(404).json("Not Found");
+      return next();
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json("Internal Server Error");
@@ -234,7 +232,7 @@ export const updateChallenge = async (
   const challengeData = challengeResolver(req.body);
 
   try {
-    let lesson: typeof lessons.$inferInsert & {courseId: number} | undefined;
+    let lesson: typeof lessons.$inferInsert & {courseId: number} | null = null;
     if (challengeData.lessonId) lesson = await fetchLessonById(challengeData.lessonId);
     
     const challenge = await fetchChallengeById(challengeId)
@@ -244,7 +242,7 @@ export const updateChallenge = async (
       return next();
     }
 
-    const hasPermission = await checkIfPermitted(userId, lesson?.courseId || challenge.courseId);
+    const hasPermission = await checkIfPermitted(userId, lesson?.courseId ?? challenge?.courseId);
 
     if (!hasPermission) {
       res.json({ error: "permission" });
@@ -277,7 +275,7 @@ export const deleteChallenge = async (
 
     const hasPermission = await checkIfPermitted(
       userId,
-      challenge.courseId
+      challenge?.courseId
     );
 
     if (!hasPermission) {
