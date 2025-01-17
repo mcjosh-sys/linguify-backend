@@ -113,7 +113,7 @@ export const updateChallengeOption = async (
   const challengeOptionData = challengeOptionResolver(req.body);
 
   try {
-    let challenge: (typeof challenges.$inferInsert) & { courseId: number } | undefined;
+    let challenge: (typeof challenges.$inferInsert) & { courseId: number } | null = null;
     
     if (challengeOptionData.challengeId)
       challenge = await fetchChallengeById(challengeOptionData.challengeId);

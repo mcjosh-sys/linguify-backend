@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": ["ESNext", "ES2020"],
     "target": "ESNext",
     "module": "ESNext",
     "sourceMap": true,
@@ -19,7 +19,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["bun","node"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*","drizzle.config.ts","node_modules/pino-std-serializers/**/*", "node_modules/pino-pretty/**/*"],
 }
