@@ -1,7 +1,4 @@
-import type { challenges, lessons } from "@/db/schema";
-import type { NextFunction, Request, Response } from "express";
 import {
-  checkIfPermitted,
   fetchChallenge,
   fetchChallengeById,
   fetchChallengeProgress,
@@ -10,40 +7,50 @@ import {
   fetchUserProgress,
   mutateChallenge,
   upsertChallengeProgress,
-} from "../db/queries";
+} from "@/lib/db/queries";
+import type { challenges, lessons } from "@/lib/db/schema";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type {
+  CreateChallengeProgressReqBody,
+  CreateChallengeReqBody,
+  UpdateChallengeReqBody,
+} from "@/schemas/challenge.schema";
+import type { NextFunction, Request, Response } from "express";
 
 const challengeResolver = (reqBody: any): typeof challenges.$inferInsert => {
-  const { type, question, order, lessonId } = reqBody
+  const { type, question, order, lessonId } = reqBody;
 
   return {
-    type, question, order, lessonId
-  }
-}
+    type,
+    question,
+    order,
+    lessonId,
+  };
+};
 
 export const getChallengeProgress = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const challengeId = parseInt(req.params.challengeId);
+  const challengeId: number = req.validatedParams.challengeId;
   const { userId } = req.params;
-  if (!userId) {
-    res.status(401).json("Unauthorized");
-    next();
-    return;
-  }
   try {
     const challenge = await fetchChallenge(challengeId);
     if (!challenge) {
-      res.status(404).send("Challenge not found");
-      return next();
+      throw new NotFoundError("Challenge not found.");
     }
     const challengeProgress = await fetchChallengeProgress(userId, challengeId);
-    res.status(200).json(challengeProgress);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      challengeProgress,
+      "Challenge progress retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const insertChallengeProgress = async (
@@ -51,42 +58,33 @@ export const insertChallengeProgress = async (
   res: Response,
   next: NextFunction
 ) => {
-  const challengeId = parseInt(req.params.challengeId);
+  const challengeId: number = req.validatedParams.challengeId;
 
-  if (!challengeId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
-
-  const { userId } = req.body;
-
-  if (!userId) {
-    res.sendStatus(401);
-    next();
-    return;
-  }
+  const { userId }: CreateChallengeProgressReqBody = req.body;
 
   try {
     const currentUserProgress = await fetchUserProgress(userId);
 
     if (!currentUserProgress) {
-      res.status(404).json("User progress not found.");
-      return next();
+      throw new NotFoundError("User progress not found.");
     }
 
     const challenge = await fetchChallenge(challengeId);
 
     if (!challenge) {
-      res.status(401).json("Challenge not found");
-      return next();
+      throw new NotFoundError("Challenge not found");
     }
 
     await upsertChallengeProgress(challengeId, currentUserProgress);
-    res.status(201).json();
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      null,
+      "Challenge progress inserted successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const updateChallengeProgress = async (
@@ -94,31 +92,22 @@ export const updateChallengeProgress = async (
   res: Response,
   next: NextFunction
 ) => {
-  const challengeId = parseInt(req.params.challengeId);
+  const challengeId: number = req.validatedParams.challengeId;
 
-  const { userId } = req.body;
-
-  if (!userId) {
-    res.sendStatus(401);
-    next();
-    return;
-  }
+  const { userId }: CreateChallengeProgressReqBody = req.body;
 
   try {
     const currentUserProgress = await fetchUserProgress(userId);
 
     if (!currentUserProgress) {
-      res.status(404).json("User progress not found.");
-      return next();
+      throw new NotFoundError("User progress not found.");
     }
 
     const challenge = await fetchChallenge(challengeId);
 
     if (!challenge) {
-      res.status(401).json("Challenge not found");
-      return next();
+      throw new NotFoundError("Challenge not found");
     }
-
 
     const existingChallengeProgress = await fetchChallengeProgress(
       userId,
@@ -130,12 +119,15 @@ export const updateChallengeProgress = async (
       currentUserProgress,
       existingChallengeProgress
     );
-    res.status(200).json();
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "Challenge progress updated successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-
-  next();
 };
 
 export const getChallenges = async (
@@ -145,149 +137,119 @@ export const getChallenges = async (
 ) => {
   try {
     const data = await fetchChallenges();
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Challenges retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const getChallengeById = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const challengeId = parseInt(req.params.challengeId);
-  if (!challengeId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
+  const challengeId: number = req.validatedParams.challengeId;
+
   try {
     const data = await fetchChallengeById(challengeId);
     if (!data) {
-      res.status(404).json("Not Found");
-      return next();
+      throw new NotFoundError("Challenge not found.");
     }
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Challenge retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const createChallenge = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-
-  if (!userId) {
-    res.status(400).json("Missing userId.");
-    return next();
-  }
-
-  const challengeData = challengeResolver(req.body);
-
-  if (
-    Object.entries(challengeData).some(([_, value]) => !value)
-  ) {
-    res.status(400).json("Missing information in the request body.");
-    return next();
-  }
+  const challengeData: CreateChallengeReqBody = req.body;
 
   try {
     const lesson = await fetchLessonById(challengeData.lessonId);
     if (!lesson) {
-      res.status(400).json(`Invalid lessonId`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, lesson.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new BadRequestError("Invalid lessonId");
     }
 
     await mutateChallenge("create", { challenge: challengeData });
-    res.status(201).json("Challenge has been created successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      null,
+      "Challenge created successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const updateChallenge = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const challengeId = parseInt(req.params.challengeId)
-
-  if (!userId || !challengeId) {
-    res.status(400).json("Missing userId or challengeId.");
-    return next();
-  }
-
-  const challengeData = challengeResolver(req.body);
+  const challengeId: number = req.validatedParams.challengeId;
+  const challengeData: UpdateChallengeReqBody = req.body;
 
   try {
-    let lesson: typeof lessons.$inferInsert & {courseId: number} | null = null;
-    if (challengeData.lessonId) lesson = await fetchLessonById(challengeData.lessonId);
-    
-    const challenge = await fetchChallengeById(challengeId)
+    let lesson: (typeof lessons.$inferInsert & { courseId: number }) | null =
+      null;
+    if (challengeData.lessonId)
+      lesson = await fetchLessonById(challengeData.lessonId);
 
-    if (challengeData.lessonId && !lesson) {
-      res.status(400).json(`Invalid lessonId`);
-      return next();
+    const challenge = await fetchChallengeById(challengeId);
+
+    if (!challenge) {
+      throw new NotFoundError("Challenge not found.");
     }
 
-    const hasPermission = await checkIfPermitted(userId, lesson?.courseId ?? challenge?.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (challengeData.lessonId && !lesson) {
+      throw new BadRequestError("Invalid lessonId");
     }
 
     await mutateChallenge("update", { challenge: challengeData, challengeId });
-    res.status(201).json("Challenge has been updated successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "Challenge updated successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const deleteChallenge = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const challengeId = parseInt(req.params.challengeId);
-
-  if (!userId || !challengeId) {
-    res.status(400).json("Missing userId or challendId.");
-    return next();
-  }
+  const challengeId: number = req.validatedParams.challengeId;
 
   try {
     const challenge = await fetchChallengeById(challengeId);
 
-    const hasPermission = await checkIfPermitted(
-      userId,
-      challenge?.courseId
-    );
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (!challenge) {
+      throw new NotFoundError("Challenge not found.");
     }
 
     await mutateChallenge("delete", { challengeId });
-    res.status(201).json("Challenge has been deleted successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "Challenge deleted successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };

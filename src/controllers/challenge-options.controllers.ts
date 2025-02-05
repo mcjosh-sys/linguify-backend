@@ -1,12 +1,17 @@
-import type { challengeOptions, challenges } from "@/db/schema";
+import type { challengeOptions, challenges } from "@/lib/db/schema";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type {
+  CreateChallengeOptionReqBody,
+  UpdateChallengeOptionReqBody,
+} from "@/schemas/challenge-option.schema";
 import type { NextFunction, Request, Response } from "express";
 import {
-  checkIfPermitted,
   fetchChallengeById,
   fetchChallengeOptionById,
   fetchChallengeOptions,
   mutateChallengeOption,
-} from "../db/queries";
+} from "../lib/db/queries";
 
 const challengeOptionResolver = (
   reqBody: any
@@ -29,153 +34,132 @@ export const getChallengeOptions = async (
 ) => {
   try {
     const data = await fetchChallengeOptions();
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Challenge options fetched successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
+
 export const getChallengeOptionById = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const challengeOptionId = parseInt(req.params.challengeOptionId);
-  if (!challengeOptionId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
+  const challengeOptionId: number = req.validatedParams.challengeOptionId;
 
   try {
     const data = await fetchChallengeOptionById(challengeOptionId);
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Challenge option fetched successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
+
 export const createChallengeOption = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-
-  if (!userId) {
-    res.status(400).json("Missing userId.");
-    return next();
-  }
-
-  const challengeOptionData = challengeOptionResolver(req.body);
-
-  if (Object.entries(challengeOptionData).some(([key, value]) => key !== 'imageSrc' && !value)) {
-    res.status(400).json("Missing information in the request body.");
-    return next();
-  }
+  const challengeOptionData: CreateChallengeOptionReqBody = req.body;
 
   try {
     const challenge = await fetchChallengeById(challengeOptionData.challengeId);
+
     if (!challenge) {
-      res.status(400).json(`Invalid challengeId`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, challenge.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new BadRequestError(`Invalid challengeId`);
     }
 
     await mutateChallengeOption("create", {
       challengeOption: challengeOptionData,
     });
-    res.status(201).json("Challenge option has been created successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      null,
+      "Challenge option created successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
+
 export const updateChallengeOption = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const challengeOptionId = parseInt(req.params.challengeOptionId);
+  const challengeOptionId: number = req.validatedParams.challengeOptionId;
 
-  if (!userId || !challengeOptionId) {
-    res.status(400).json("Missing userId or challengeOptionId.");
-    return next();
-  }
-
-  const challengeOptionData = challengeOptionResolver(req.body);
+  const challengeOptionData: UpdateChallengeOptionReqBody = req.body;
 
   try {
-    let challenge: (typeof challenges.$inferInsert) & { courseId: number } | null = null;
-    
+    let challenge:
+      | (typeof challenges.$inferInsert & { courseId: number })
+      | null = null;
+
     if (challengeOptionData.challengeId)
       challenge = await fetchChallengeById(challengeOptionData.challengeId);
 
     if (challengeOptionData.challengeId && !challenge) {
-      res.status(400).json(`Invalid challengeId`);
-      return next();
+      throw new BadRequestError(`Invalid challengeId`);
     }
-    
-    const challengeOption = await fetchChallengeOptionById(challengeOptionId)
 
-    const hasPermission = await checkIfPermitted(userId, challenge?.courseId || challengeOption.courseId);
+    const challengeOption = await fetchChallengeOptionById(challengeOptionId);
 
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (!challengeOption) {
+      throw new NotFoundError(
+        `Challenge option with id ${challengeOptionId} not found`
+      );
     }
 
     await mutateChallengeOption("update", {
       challengeOption: challengeOptionData,
-      challengeOptionId
+      challengeOptionId,
     });
-    res.json("Challenge option has been updated successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "Challenge option updated successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const deleteChallengeOption = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const challengeOptionId = parseInt(req.params.challengeOptionId);
-
-  if (!userId || !challengeOptionId) {
-    res.status(400).json("Missing userId or challengeOptionId.");
-    return next();
-  }
+  const challengeOptionId: number = req.validatedParams.challengeOptionId;
 
   try {
-
     const challengeOption = await fetchChallengeOptionById(challengeOptionId);
-
-    const hasPermission = await checkIfPermitted(
-      userId, challengeOption.courseId
-    );
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (!challengeOption) {
+      throw new NotFoundError(
+        `Challenge option with id ${challengeOptionId} not found`
+      );
     }
-
     await mutateChallengeOption("delete", {
       challengeOptionId,
     });
-    res.json("Challenge option has been deleted successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "Challenge option deleted successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };

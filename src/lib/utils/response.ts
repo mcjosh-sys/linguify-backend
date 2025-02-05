@@ -1,16 +1,30 @@
+import { createApiError, createApiResponse, sendApiResponse } from "@/lib/utils/api";
 import type { Response } from "express";
-import { createApiError, createApiResponse } from "@/types/api";
 import logger from "./logger";
 
-export const sendErrorResponse = (res: Response, status: number, message: string, error?: unknown) => {
+export const sendErrorResponse = (
+  res: Response,
+  status: number,
+  message: string,
+  error?: Error
+) => {
   if (error) {
     logger.error(error, message);
   }
-  res.status(status).json(createApiError(message));
+  sendApiResponse(res, status, createApiError(status, message));
 };
 
-export const sendSuccessResponse = <T>(res: Response, status: number, data?: T, message?: string) => {
-  res.status(status).json(createApiResponse({ data, message }));
+export const sendSuccessResponse = <T>(
+  res: Response,
+  status: number,
+  data?: T,
+  message?: string
+) => {
+  sendApiResponse(
+    res,
+    status,
+    createApiResponse(status, message ?? "", data ?? {})
+  );
 };
 
 export const HTTP_STATUS = {

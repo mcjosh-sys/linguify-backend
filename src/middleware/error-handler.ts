@@ -1,8 +1,13 @@
+import { BadRequestError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { createApiError, sendApiResponse } from "@/lib/utils/api";
+import logger from "@/lib/utils/logger";
+import { HTTP_STATUS } from "@/lib/utils/response";
 import type { NextFunction, Request, Response } from "express";
-import { BadRequestError, NotFoundError, ValidationError } from "@/lib/errors";
-import { createApiError } from "@/types/api";
 import { ZodError } from "zod";
-import logger  from "@/lib/utils/logger";
+
+const sendError = (error: string) => {
+  return process.env.NODE_ENV === "development" ? error : undefined;
+};
 
 export const errorHandler = (
   error: Error,
@@ -13,38 +18,77 @@ export const errorHandler = (
   logger.error(error);
 
   if (error instanceof ValidationError) {
-    return res.status(400).json(
-      createApiError("Validation Error", JSON.stringify(error.errors))
+    return sendApiResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      createApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        JSON.stringify(error.errors),
+        "Validation Error",
+      )
     );
   }
 
   if (error instanceof BadRequestError) {
-    return res.status(400).json(
-      createApiError("Bad Request", error.message)
+    return sendApiResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      createApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        error.message,
+        "Bad Request",
+      )
+    );
+  }
+
+  if (error instanceof ForbiddenError) {
+    return sendApiResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      createApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        error.message,
+        "Forbidden",
+      )
     );
   }
 
   if (error instanceof NotFoundError) {
-    return res.status(404).json(
-      createApiError("Not Found", error.message)
+    return sendApiResponse(
+      res,
+      HTTP_STATUS.NOT_FOUND,
+      createApiError(
+        HTTP_STATUS.NOT_FOUND,
+        error.message,
+        "Not Found",
+      )
     );
   }
 
   if (error instanceof ZodError) {
-    const validationErrors = error.errors.map((err) => ({
-      path: err.path.join("."),
-      message: err.message,
-    }));
-    return res.status(400).json(
-      createApiError("Validation Error", JSON.stringify(validationErrors))
+    // const validationErrors = error.errors.map((err) => ({
+    //   path: err.path.join("."),
+    //   message: err.message,
+    // }));
+    const validationErrors = error.errors.map((err) => `${err.path.join(", ")}: ${err.message}`).join(". ");
+    return sendApiResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      createApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        validationErrors,
+        "Validation Error",
+      )
     );
   }
 
-  // Default error
-  return res.status(500).json(
+  return sendApiResponse(
+    res,
+    HTTP_STATUS.INTERNAL_SERVER_ERROR,
     createApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      error.message,
       "Internal Server Error",
-      process.env.NODE_ENV === "development" ? error.message : undefined
     )
   );
 };

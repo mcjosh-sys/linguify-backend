@@ -1,8 +1,9 @@
+import { fetchUserSubscription } from "@/lib/db/queries";
+import { stripe } from "@/lib/stripe";
+import { absoluteUrl } from "@/lib/utils";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type { CreateStripeUrlReqBody } from "@/schemas/subscription.schema";
 import type { NextFunction, Request, Response } from "express";
-import { fetchUserSubscription } from "../db/queries";
-import { stripe } from "../lib/stripe";
-import { absoluteUrl } from "../lib/uitls";
-import logger from "../lib/uitls/logger";
 
 const returnUrl = absoluteUrl("/shop");
 
@@ -11,25 +12,17 @@ export const createStripeUrl = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  const { email } = req.body;
-  if (!userId) {
-    res.sendStatus(401);
-    next();
-    return;
-  }
+  const userId: string = req.validatedParams.userId;
+  const { email }: CreateStripeUrlReqBody = req.body;
 
   try {
     const userSubscription = await fetchUserSubscription(userId);
-    if (userSubscription && userSubscription.stripeCustomerId) {
+    if (userSubscription?.stripeCustomerId) {
       const stripeSession = await stripe.billingPortal.sessions.create({
         customer: userSubscription.stripeCustomerId,
         return_url: returnUrl,
       });
-
-      res.status(200).json({ data: stripeSession.url });
-      next();
-      return;
+      return sendSuccessResponse(res, HTTP_STATUS.OK, stripeSession.url);
     }
 
     const stripeSession = await stripe.checkout.sessions.create({
@@ -58,10 +51,8 @@ export const createStripeUrl = async (
       success_url: returnUrl,
       cancel_url: returnUrl,
     });
-    res.status(200).json({ data: stripeSession.url });
+    sendSuccessResponse(res, HTTP_STATUS.OK, stripeSession.url);
   } catch (error) {
-    logger.error(error);
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };

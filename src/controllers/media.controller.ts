@@ -1,4 +1,6 @@
-import { fetchMedia, insertMedia } from "@/db/queries";
+import { fetchMedia, insertMedia } from "@/lib/db/queries";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type { CreateMediaReqBody } from "@/schemas/media.schema";
 import type { NextFunction, Request, Response } from "express";
 
 export const getMedia = async (
@@ -8,11 +10,10 @@ export const getMedia = async (
 ) => {
   try {
     const data = await fetchMedia();
-    res.json(data);
+    sendSuccessResponse(res, HTTP_STATUS.OK, data);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const postMedia = async (
@@ -21,11 +22,10 @@ export const postMedia = async (
   next: NextFunction
 ) => {
   try {
-    const payload = req.body;
+    const payload: CreateMediaReqBody = req.body;
     await insertMedia(payload);
-    res.json();
+    sendSuccessResponse(res, HTTP_STATUS.CREATED, "Media added successfully");
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };

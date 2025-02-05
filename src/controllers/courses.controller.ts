@@ -1,11 +1,11 @@
-import logger from "@/lib/uitls/logger";
+import { NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type {
+  CreateCourseReqBody,
+  UpdateCourseReqBody,
+} from "@/schemas/course.schema";
 import type { NextFunction, Request, Response } from "express";
-import {
-  checkIfPermitted,
-  fetchCourseById,
-  fetchCourses,
-  mutateCourse,
-} from "../db/queries";
+import { fetchCourseById, fetchCourses, mutateCourse } from "../lib/db/queries";
 
 // COURSE
 export const getCourses = async (
@@ -15,11 +15,17 @@ export const getCourses = async (
 ) => {
   try {
     const courses = await fetchCourses();
-    res.status(200).json(courses);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      courses,
+      "Courses fetched successfully."
+    );
+
+    // res.status(200).json(courses);
   } catch (error) {
-    res.status(500).json({ message: "internal server error" });
+    next(error);
   }
-  next();
 };
 
 export const getCourseById = async (
@@ -27,25 +33,23 @@ export const getCourseById = async (
   res: Response,
   next: NextFunction
 ) => {
-  const courseId = parseInt(req.params.courseId);
-  if (!courseId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
+  // console.log(req.validatedParams);
+  const courseId: number = req.validatedParams.courseId;
   try {
-    const data = await fetchCourseById(courseId);
+    const course = await fetchCourseById(courseId);
 
-    if (!data) {
-      res.status(404).json("Not Found");
-      return next();
+    if (!course) {
+      throw new NotFoundError("Course not found.");
     }
-    res.status(200).json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      course,
+      "Course successfully retrieved."
+    );
   } catch (error) {
-    logger.error(error);
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-
-  next();
 };
 
 export const createCourse = async (
@@ -53,98 +57,65 @@ export const createCourse = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  const title = req.body.title;
-  const imageSrc = req.body.imageSrc;
-
-  if (!userId) {
-    res.status(400).json("userId is required");
-    return next();
-  }
-
-  if (!title || !imageSrc) {
-    res.status(400).json("title or imageSrc is missing");
-    return next();
-  }
+  const { title, imageSrc }: CreateCourseReqBody = req.body;
 
   try {
-    const hasPermission = await checkIfPermitted(userId);
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
-    }
-
     await mutateCourse("create", { title, imageSrc });
-    res.status(201).json("Course created successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      {},
+      "Course created successfully."
+    );
+    next();
   } catch (error) {
-    logger.error(error);
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-
-  next();
 };
 export const updateCourse = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const courseId = parseInt(req.params.courseId);
-  const title = req.body.title;
-  const imageSrc = req.body.imageSrc;
-
-  if (!userId || !courseId) {
-    res.status(400).json("Missing userId or courseId");
-    return next();
-  }
+  const courseId: number = req.validatedParams.courseId;
+  const { title, imageSrc }: UpdateCourseReqBody = req.body;
 
   try {
     const course = await fetchCourseById(courseId);
 
     if (!course) {
-      res.status(404).json(`Course with the id '${courseId}' does not exist.`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, courseId);
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new NotFoundError(
+        `Course with the id '${courseId}' does not exist.`
+      );
     }
 
     await mutateCourse("update", { course: { title, imageSrc }, courseId });
-    res.json("Course updated successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      {},
+      "Course updated successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const deleteCourse = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const courseId = parseInt(req.params.courseId);
-
-  if (!userId || !courseId) {
-    res.status(400).json("Missing userId or courseId");
-    return next();
-  }
+  const { userId, courseId } = req.validatedParams;
 
   try {
-
-    const hasPermission = await checkIfPermitted(userId, courseId);
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
-    }
-
     await mutateCourse("delete", courseId);
-    res.json("Course deleted successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      {},
+      "Course deleted successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-  next()
 };

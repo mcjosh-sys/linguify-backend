@@ -5,7 +5,7 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/neon-http";
 
 import { sql } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../lib/db/schema";
 
 const provider = neon(process.env.NEON_DATABASE_URL!);
 

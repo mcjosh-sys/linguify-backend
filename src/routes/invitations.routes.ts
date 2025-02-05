@@ -1,9 +1,25 @@
-import { createInvitation, getInvitations, revokeInvitation } from '@/controllers/invitations.controllers'
-import { Router } from 'express'
+import {
+  createInvitation,
+  getInvitations,
+  revokeInvitation,
+} from "@/controllers/invitations.controllers";
+import {
+  validateParams,
+  validateQuery,
+  validateRequestBody,
+} from "@/middleware/validation";
+import {
+  invitationQuerySchema,
+  invitationSchema,
+} from "@/schemas/invitation.schema";
+import { Router } from "express";
 
-const router = Router()
+const router = Router();
 
-router.route("/").get(getInvitations).post(createInvitation)
-router.delete("/:id", revokeInvitation)
+router
+  .route("/")
+  .get(validateQuery(invitationQuerySchema), getInvitations)
+  .post(validateRequestBody(invitationSchema), createInvitation);
+router.delete("/:id", validateParams({ id: "string" }), revokeInvitation);
 
-export default router
+export default router;

@@ -1,7 +1,6 @@
 import logger from "@/lib/utils/logger";
 import { and, eq } from "drizzle-orm";
 import db from "./drizzle";
-import { DatabaseService } from "@/lib/db";
 import {
   challengeOptions,
   challengeProgress,
@@ -20,17 +19,18 @@ type MutationType = "create" | "update" | "delete";
 export const POINTS_TO_REFILL = 50;
 
 export const fetchUserProgress = async (userId: string) => {
-  return DatabaseService.executeOrNull(
-    async () => {
-      return await db.query.userProgress.findFirst({
-        where: eq(userProgress.userId, userId),
-        with: {
-          activeCourse: true,
-        },
-      });
-    },
-    `Failed to fetch user progress for user ${userId}`
-  );
+  try {
+    const progress = await db.query.userProgress.findFirst({
+      where: eq(userProgress.userId, userId),
+      with: {
+        activeCourse: true,
+      },
+    });
+    return progress;
+  } catch (error) {
+    logger.error(error);
+    throw error;
+  }
 };
 
 export const fetchUnits = async (userId: string) => {
@@ -151,7 +151,7 @@ export const fetchCourseProgress = async (userId: string) => {
 export const fetchLesson = async (userId: string, id?: number) => {
   try {
     const courseProgress = await fetchCourseProgress(userId);
-    const lessonId = id || courseProgress?.activeLessonId;
+    const lessonId = id ?? courseProgress?.activeLessonId;
 
     if (!lessonId) return null;
 
@@ -170,7 +170,7 @@ export const fetchLesson = async (userId: string, id?: number) => {
       },
     });
 
-    if (!data || !data.challenges) return null;
+    if (!data?.challenges) return null;
 
     const normalizedChallenges = data.challenges.map((challenge) => {
       const completed =
@@ -181,7 +181,10 @@ export const fetchLesson = async (userId: string, id?: number) => {
     });
 
     return { ...data, challenges: normalizedChallenges };
-  } catch (error) {}
+  } catch (error) {
+    logger.error(error);
+    throw error;
+  }
 };
 
 export const fetchChallengeProgress = async (
@@ -308,37 +311,32 @@ export const fetchUserSubscription = async (userId: string) => {
 };
 
 export const fetchCourseById = async (courseId: number) => {
-  return DatabaseService.execute(
-    async () => {
-      const course = await db.query.courses.findFirst({
-        where: eq(courses.id, courseId),
-      });
-      return course;
-    },
-    `Failed to fetch course with ID ${courseId}`
-  );
+  try {
+    const data = await db.query.courses.findFirst({
+      where: eq(courses.id, courseId),
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchCourses = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const allCourses = await db.query.courses.findMany({
-        with: {
-          units: {
-            with: {
-              lessons: {
-                with: {
-                  challenges: true,
-                },
-              },
-            },
+  try {
+    const data = await db.query.courses.findMany({
+      with: {
+        units: {
+          with: {
+            lessons: true,
           },
         },
-      });
-      return allCourses;
-    },
-    'Failed to fetch courses'
-  );
+      },
+      orderBy: (courses, { desc }) => [desc(courses.updatedAt)],
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 type Course = typeof courses.$inferInsert;
@@ -378,37 +376,35 @@ export const mutateCourse = async <Type extends MutationType>(
 };
 
 export const fetchUnits2 = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.units.findMany({
-        orderBy: (units, { desc }) => [desc(units.updatedAt)],
-        with: {
-          course: {
-            columns: { title: true },
-          },
-          lessons: {
-            columns: {
-              id: true,
-            },
+  try {
+    const data = await db.query.units.findMany({
+      orderBy: (units, { desc }) => [desc(units.updatedAt)],
+      with: {
+        course: {
+          columns: { title: true },
+        },
+        lessons: {
+          columns: {
+            id: true,
           },
         },
-      });
-      return data.map((u) => ({ ...u, lessons: u.lessons.length }));
-    },
-    'Failed to fetch units'
-  );
+      },
+    });
+    return data.map((u) => ({ ...u, lessons: u.lessons.length }));
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchUnitById = async (unitId: number) => {
-  return DatabaseService.execute(
-    async () => {
-      const unit = await db.query.units.findFirst({
-        where: eq(units.id, unitId),
-      });
-      return unit;
-    },
-    `Failed to fetch unit with ID ${unitId}`
-  );
+  try {
+    const data = await db.query.units.findFirst({
+      where: eq(units.id, unitId),
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 type Unit = typeof units.$inferInsert;
@@ -447,53 +443,48 @@ export const mutateUnit = async <Type extends MutationType>(
 };
 
 export const fetchLessons = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.lessons.findMany({
-        orderBy: (lessons, { desc }) => [desc(lessons.updatedAt)],
-        with: {
-          unit: {
-            columns: {
-              courseId: true,
-              title: true,
-            },
+  try {
+    const data = await db.query.lessons.findMany({
+      orderBy: (lessons, { desc }) => [desc(lessons.updatedAt)],
+      with: {
+        unit: {
+          columns: {
+            courseId: true,
+            title: true,
           },
-          challenges: true,
         },
-      });
-      const formattedData = data.map((lesson) => ({
-        courseId: lesson.unit.courseId,
-        ...lesson,
-        challenges: lesson.challenges.length,
-      }));
-      return formattedData;
-    },
-    'Failed to fetch lessons'
-  );
+        challenges: true,
+      },
+    });
+    const formattedData = data.map((lesson) => ({
+      courseId: lesson.unit.courseId,
+      ...lesson,
+      challenges: lesson.challenges.length,
+    }));
+    return formattedData;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchLessonById = async (
   lessonId: number
 ): Promise<typeof lessons.$inferSelect & { courseId: number }> => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.lessons.findFirst({
-        where: eq(lessons.id, lessonId),
-        with: {
-          unit: true,
-        },
-      });
-      if (!data) {
-        throw new Error(`Lesson with ID ${lessonId} not found`);
-      }
-      const courseId = data.unit.courseId;
-      return {
-        ...data,
-        courseId,
-      } as any;
-    },
-    `Failed to fetch lesson with ID ${lessonId}`
-  );
+  try {
+    const data = await db.query.lessons.findFirst({
+      where: eq(lessons.id, lessonId),
+      with: {
+        unit: true,
+      },
+    });
+    const courseId = data?.unit.courseId;
+    return {
+      ...data,
+      courseId,
+    } as any;
+  } catch (error) {
+    throw error;
+  }
 };
 
 type Lesson = typeof lessons.$inferInsert;
@@ -504,106 +495,100 @@ export const mutateLesson = async <Type extends MutationType>(
     ? [type: Type, { lesson: Partial<Lesson>; lessonId: number }]
     : [type: Type, { lessonId: number }]
 ) => {
-  return DatabaseService.execute(
-    async () => {
-      const [type, payload] = args;
-      switch (type) {
-        case "create":
-          await db.insert(lessons).values({
+  try {
+    const [type, payload] = args;
+    switch (type) {
+      case "create":
+        await db.insert(lessons).values({
+          ...payload.lesson,
+        });
+        break;
+      case "update":
+        await db
+          .update(lessons)
+          .set({
             ...payload.lesson,
-          });
-          break;
-        case "update":
-          await db
-            .update(lessons)
-            .set({
-              ...payload.lesson,
-            })
-            .where(eq(lessons.id, payload.lessonId));
-          break;
-        case "delete":
-          await db.delete(lessons).where(eq(lessons.id, payload.lessonId));
-          break;
-        default:
-          break;
-      }
-    },
-    `Failed to ${args[0]} lesson ${args[1]}`
-  );
+          })
+          .where(eq(lessons.id, payload.lessonId));
+        break;
+      case "delete":
+        await db.delete(lessons).where(eq(lessons.id, payload.lessonId));
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchChallenges = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.challenges.findMany({
-        orderBy: (challenges, { desc }) => [desc(challenges.updatedAt)],
-        with: {
-          lesson: {
-            columns: {
-              title: true,
-            },
-            with: {
-              unit: {
-                columns: { courseId: true },
-              },
-            },
+  try {
+    const data = await db.query.challenges.findMany({
+      orderBy: (challenges, { desc }) => [desc(challenges.updatedAt)],
+      with: {
+        lesson: {
+          columns: {
+            title: true,
           },
-          challengeOptions: {
-            columns: {
-              id: true,
+          with: {
+            unit: {
+              columns: { courseId: true },
             },
           },
         },
-      });
+        challengeOptions: {
+          columns: {
+            id: true,
+          },
+        },
+      },
+    });
 
-      const formattedData = data.map((challenge) => {
-        const courseId = challenge.lesson.unit.courseId;
-        delete (challenge.lesson as any).unit;
-
-        return {
-          courseId,
-          ...challenge,
-          challengeOptions: challenge.challengeOptions.length || 0,
-        };
-      });
-      return formattedData;
-    },
-    'Failed to fetch challenges'
-  );
+    const formattedData = data.map((challenge) => {
+      const courseId = challenge.lesson.unit.courseId;
+      delete (challenge.lesson as any).unit;
+      return {
+        courseId,
+        ...challenge,
+        challengeOptions: challenge.challengeOptions.length || 0,
+      };
+    });
+    return formattedData;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchChallengeById = async (
   challengeId: number
 ): Promise<typeof challenges.$inferSelect & { courseId: number }> => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.challenges.findFirst({
-        where: eq(challenges.id, challengeId),
-        with: {
-          lesson: {
-            columns: {},
-            with: {
-              unit: {
-                columns: {
-                  courseId: true,
-                },
+  try {
+    const data = await db.query.challenges.findFirst({
+      where: eq(challenges.id, challengeId),
+      with: {
+        lesson: {
+          columns: {},
+          with: {
+            unit: {
+              columns: {
+                courseId: true,
               },
             },
           },
         },
-      });
-      if (!data) {
-        throw new Error(`Challenge with ID ${challengeId} not found`);
-      }
-      const courseId = data.lesson.unit.courseId;
-      delete (data as any)?.lesson;
-      return {
-        ...data,
-        courseId,
-      } as any;
-    },
-    `Failed to fetch challenge with ID ${challengeId}`
-  );
+        // challengeOptions: true,
+      },
+    });
+    const courseId = data?.lesson.unit.courseId;
+    delete (data as any)?.lesson;
+    return {
+      ...data,
+      courseId,
+    } as any;
+  } catch (error) {
+    throw error;
+  }
 };
 
 type Challenge = typeof challenges.$inferInsert;
@@ -611,117 +596,108 @@ export const mutateChallenge = async <Type extends MutationType>(
   ...args: Type extends "create"
     ? [type: Type, { challenge: Challenge }]
     : Type extends "update"
-    ? [
-        type: Type,
-        { challenge: Partial<Challenge>; challengeId: number }
-      ]
+    ? [type: Type, { challenge: Partial<Challenge>; challengeId: number }]
     : [type: Type, { challengeId: number }]
 ) => {
-  return DatabaseService.execute(
-    async () => {
-      const [type, payload] = args;
-      switch (type) {
-        case "create":
-          await db.insert(challenges).values({
+  try {
+    const [type, payload] = args;
+    switch (type) {
+      case "create":
+        await db.insert(challenges).values({
+          ...payload.challenge,
+        });
+        break;
+      case "update":
+        await db
+          .update(challenges)
+          .set({
             ...payload.challenge,
-          });
-          break;
-        case "update":
-          await db
-            .update(challenges)
-            .set({
-              ...payload.challenge,
-            })
-            .where(eq(challenges.id, payload.challengeId));
-          break;
-        case "delete":
-          await db
-            .delete(challenges)
-            .where(eq(challenges.id, payload.challengeId));
-          break;
-        default:
-          break;
-      }
-    },
-    `Failed to ${args[0]} challenge ${args[1]}`
-  );
+          })
+          .where(eq(challenges.id, payload.challengeId));
+        break;
+      case "delete":
+        await db
+          .delete(challenges)
+          .where(eq(challenges.id, payload.challengeId));
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchChallengeOptions = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.challengeOptions.findMany({
-        orderBy: (challengeOptions, { desc }) => [
-          desc(challengeOptions.updatedAt),
-        ],
-        with: {
-          challenge: {
-            columns: {
-              question: true,
-            },
-            with: {
-              lesson: {
-                columns: {},
-                with: {
-                  unit: {
-                    columns: { courseId: true },
-                  },
+  try {
+    const data = await db.query.challengeOptions.findMany({
+      orderBy: (challengeOptions, { desc }) => [
+        desc(challengeOptions.updatedAt),
+      ],
+      with: {
+        challenge: {
+          columns: {
+            question: true,
+          },
+          with: {
+            lesson: {
+              columns: {},
+              with: {
+                unit: {
+                  columns: { courseId: true },
                 },
               },
             },
           },
         },
-      });
-      const formattedData = data.map((option) => {
-        const courseId = option.challenge.lesson.unit.courseId;
-        delete (option.challenge as any).lesson;
+      },
+    });
+    const formattedData = data.map((option) => {
+      const courseId = option.challenge.lesson.unit.courseId;
+      delete (option.challenge as any).lesson;
 
-        return {
-          courseId,
-          ...option,
-        };
-      });
-      return formattedData;
-    },
-    'Failed to fetch challenge options'
-  );
+      return {
+        courseId,
+        ...option,
+      };
+    });
+    return formattedData;
+  } catch (error) {
+    throw error;
+  }
 };
 
-export const fetchChallengeOptionById = async (optionId: number): Promise<typeof challengeOptions.$inferSelect & { courseId: number }> => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.challengeOptions.findFirst({
-        where: eq(challengeOptions.id, optionId),
-        with: {
-          challenge: {
-            columns: {},
-            with: {
-              lesson: {
-                columns: {},
-                with: {
-                  unit: {
-                    columns: {
-                      courseId: true,
-                    },
+export const fetchChallengeOptionById = async (optionId: number) => {
+  try {
+    const data = await db.query.challengeOptions.findFirst({
+      where: eq(challengeOptions.id, optionId),
+      with: {
+        challenge: {
+          columns: {},
+          with: {
+            lesson: {
+              columns: {},
+              with: {
+                unit: {
+                  columns: {
+                    courseId: true,
                   },
                 },
               },
             },
           },
         },
-      });
-      if (!data) {
-        throw new Error(`Challenge option with ID ${optionId} not found`);
-      }
-      const courseId = data.challenge.lesson.unit.courseId;
-      delete (data as any)?.challenge;
-      return {
-        ...data,
-        courseId,
-      };
-    },
-    `Failed to fetch challenge option with ID ${optionId}`
-  );
+      },
+    });
+    const courseId = data?.challenge.lesson.unit.courseId;
+    delete (data as any)?.challenge;
+    return {
+      ...data,
+      courseId,
+    };
+  } catch (error) {
+    throw error;
+  }
 };
 
 type ChallengeOption = typeof challengeOptions.$inferInsert;
@@ -735,133 +711,124 @@ export const mutateChallengeOption = async <Type extends MutationType>(
       ]
     : [type: Type, { challengeOptionId: number }]
 ) => {
-  return DatabaseService.execute(
-    async () => {
-      const [type, payload] = args;
-      switch (type) {
-        case "create":
-          await db.insert(challengeOptions).values({
+  try {
+    const [type, payload] = args;
+    switch (type) {
+      case "create":
+        await db.insert(challengeOptions).values({
+          ...payload.challengeOption,
+        });
+        break;
+      case "update":
+        await db
+          .update(challengeOptions)
+          .set({
             ...payload.challengeOption,
-          });
-          break;
-        case "update":
-          await db
-            .update(challengeOptions)
-            .set({
-              ...payload.challengeOption,
-            })
-            .where(eq(challengeOptions.id, payload.challengeOptionId));
-          break;
-        case "delete":
-          await db
-            .delete(challengeOptions)
-            .where(eq(challengeOptions.id, payload.challengeOptionId));
-          break;
-        default:
-          break;
-      }
-    },
-    `Failed to ${args[0]} challenge option ${args[1]}`
-  );
+          })
+          .where(eq(challengeOptions.id, payload.challengeOptionId));
+        break;
+      case "delete":
+        await db
+          .delete(challengeOptions)
+          .where(eq(challengeOptions.id, payload.challengeOptionId));
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchTopTenUsers = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.userProgress.findMany({
-        orderBy: (userProgress, { desc }) => [desc(userProgress.points)],
-        limit: 10,
-        columns: {
-          points: true,
-          userId: true,
-        },
-        with: {
-          user: true,
-        },
-      });
-      return data;
-    },
-    'Failed to fetch top ten users'
-  );
+  try {
+    const data = db.query.userProgress.findMany({
+      orderBy: (userProgress, { desc }) => [desc(userProgress.points)],
+      limit: 10,
+      columns: {
+        points: true,
+        userId: true,
+      },
+      with: {
+        user: true,
+      },
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchMedia = async () => {
-  return DatabaseService.execute(
-    async () => {
-      const data = await db.query.media.findMany({
-        orderBy: (media, { desc }) => [desc(media.updatedAt)],
-      });
-      return data;
-    },
-    'Failed to fetch media'
-  );
+  try {
+    const data = await db.query.media.findMany({
+      orderBy: (media, { desc }) => [desc(media.updatedAt)],
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const insertMedia = async (payload: typeof media.$inferInsert) => {
-  return DatabaseService.execute(
-    async () => {
-      await db.insert(media).values({
-        ...payload,
-      });
-    },
-    `Failed to insert media ${payload}`
-  );
+  try {
+    await db.insert(media).values({
+      ...payload,
+    });
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const checkIfAdmin = async (userId: string) => {
-  return DatabaseService.executeOrNull(
-    async () => {
-      const data = await db.query.staff.findFirst({
-        where: eq(staff.userId, userId),
-      });
-      return data?.role === "ADMIN";
-    },
-    `Failed to check if user ${userId} is admin`
-  );
+  try {
+    const data = await db.query.staff.findFirst({
+      where: eq(staff.userId, userId),
+    });
+    return data?.role === "ADMIN";
+  } catch (error) {
+    throw error;
+  }
 };
-
 export const checkIfStaff = async (userId: string) => {
-  return DatabaseService.executeOrNull(
-    async () => {
-      const data = await db.query.staff.findFirst({
-        where: eq(staff.userId, userId),
-      });
-      return !!data;
-    },
-    `Failed to check if user ${userId} is staff`
-  );
+  try {
+    const data = await db.query.staff.findFirst({
+      where: eq(staff.userId, userId),
+    });
+    return !!data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const fetchStaff = async (userId: string) => {
-  return DatabaseService.executeOrNull(
-    async () => {
-      const data = await db.query.staff.findFirst({
-        where: eq(staff.userId, userId),
-        with: {
-          permissions: {
-            columns: {
-              courseId: true,
-            },
+  try {
+    const data = await db.query.staff.findFirst({
+      where: eq(staff.userId, userId),
+      with: {
+        permissions: {
+          columns: {
+            courseId: true,
           },
         },
-      });
+      },
+    });
 
-      return data;
-    },
-    `Failed to fetch staff for user ${userId}`
-  );
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const checkIfPermitted = async (userId: string, courseId?: number) => {
-  return DatabaseService.executeOrNull(
-    async () => {
-      const staff = await fetchStaff(userId);
-      if (staff?.role === "ADMIN") return true;
-      if (courseId) {
-        return !!staff?.permissions.find((perm) => perm.courseId === courseId);
-      }
-      return false;
-    },
-    `Failed to check if user ${userId} is permitted`
-  );
+  try {
+    const staff = await fetchStaff(userId);
+    if (staff?.role === "ADMIN") return true;
+    if (courseId) {
+      return !!staff?.permissions.find((perm) => perm.courseId === courseId);
+    }
+    return false;
+  } catch (error) {
+    throw error;
+  }
 };

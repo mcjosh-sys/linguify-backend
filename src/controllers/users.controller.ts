@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
-import type { NextFunction, Request, Response } from "express";
-import db from "../db/drizzle";
+import db from "@/lib/db/drizzle";
 import {
   fetchCourseProgress,
   fetchLesson,
@@ -10,23 +8,29 @@ import {
   fetchUserSubscription,
   mutateHeartQuery,
   POINTS_TO_REFILL,
-} from "../db/queries";
-import { courses, invitations, userProgress } from "../db/schema";
-import logger from "../lib/uitls/logger";
+} from "@/lib/db/queries";
+import { courses, userProgress } from "@/lib/db/schema";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type {
+  GetLessonParams,
+  UserProgressReqBody,
+} from "@/schemas/user.schema";
+import { eq } from "drizzle-orm";
+import type { NextFunction, Request, Response } from "express";
 
 export const getUserProgress = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
+  const userId: string = req.validatedParams.userId;
   try {
     const userProgress = await fetchUserProgress(userId);
-    res.status(200).json(userProgress);
+    sendSuccessResponse(res, HTTP_STATUS.OK, userProgress);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const updateUserProgress = async (
@@ -34,13 +38,8 @@ export const updateUserProgress = async (
   res: Response,
   next: NextFunction
 ) => {
-  // const time = new Date().getTime()
-  const { userId } = req.params;
-  const {
-    activeCourseId,
-  }: {
-    activeCourseId: number;
-  } = req.body;
+  const userId: string = req.validatedParams.userId;
+  const { activeCourseId }: UserProgressReqBody = req.body;
 
   try {
     const course = await db.query.courses.findFirst({
@@ -54,12 +53,10 @@ export const updateUserProgress = async (
       where: eq(courses.id, activeCourseId),
     });
     if (!course) {
-      res.status(404).send("course not found");
-      return next();
+      throw new NotFoundError("course not found");
     }
     if (!course.units.length || !course.units[0].lessons.length) {
-      res.status(403).send("Course is empty");
-      return next();
+      throw new BadRequestError("Course is empty");
     }
     const data = await db
       .update(userProgress)
@@ -67,23 +64,19 @@ export const updateUserProgress = async (
         activeCourseId,
       })
       .where(eq(userProgress.userId, userId));
-    res.status(200).json(data);
+
+    sendSuccessResponse(res, HTTP_STATUS.OK, data, "User progress updated");
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const insertUserProgress = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  const {
-    activeCourseId,
-  }: {
-    activeCourseId: number;
-  } = req.body;
+  const userId: string = req.validatedParams.userId;
+  const { activeCourseId }: UserProgressReqBody = req.body;
 
   try {
     const course = await db.query.courses.findFirst({
@@ -97,25 +90,26 @@ export const insertUserProgress = async (
       where: eq(courses.id, activeCourseId),
     });
     if (!course) {
-      res.status(404).send("course not found");
-      return next();
+      throw new NotFoundError("course not found");
     }
     if (!course.units.length || !course.units[0].lessons.length) {
-      res.status(403).send("Course is empty");
-      return next();
+      throw new BadRequestError("Course is empty");
     }
 
     await db.insert(userProgress).values({
       userId,
       activeCourseId,
     });
-    res.status(201).json();
-  } catch (error) {
-    logger.error(error);
-    res.status(500).json("Internal Server Error");
-  }
 
-  next();
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      null,
+      "User progress created"
+    );
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const getUnits = async (
@@ -123,15 +117,14 @@ export const getUnits = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
+  const userId: string = req.validatedParams.userId;
 
   try {
     const units = await fetchUnits(userId);
-    res.status(200).json(units);
+    sendSuccessResponse(res, HTTP_STATUS.OK, units);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const getCourseProgress = async (
@@ -139,14 +132,13 @@ export const getCourseProgress = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
+  const userId: string = req.validatedParams.userId;
   try {
     const firstUncompletedLesson = await fetchCourseProgress(userId);
-    res.status(200).json(firstUncompletedLesson);
+    sendSuccessResponse(res, HTTP_STATUS.OK, firstUncompletedLesson);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const getLesson = async (
@@ -154,16 +146,14 @@ export const getLesson = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  const lessonId = parseInt(req.params.lessonId);
+  const { userId, lessonId } = req.validatedParams as GetLessonParams;
 
   try {
-    const lesson = await fetchLesson(userId, lessonId || undefined);
-    res.status(200).json(lesson);
+    const lesson = await fetchLesson(userId, lessonId);
+    sendSuccessResponse(res, HTTP_STATUS.OK, lesson);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const getLessonPercentage = async (
@@ -171,33 +161,30 @@ export const getLessonPercentage = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
+  const userId: string = req.validatedParams.userId;
   try {
     const courseProgress = await fetchCourseProgress(userId);
 
     if (!courseProgress?.activeLessonId) {
-      res.status(200).json(0);
-      return next();
+      return sendSuccessResponse(res, HTTP_STATUS.OK, 0);
     }
     const lesson = await fetchLesson(userId, courseProgress?.activeLessonId);
 
     if (!lesson) {
-      res.status(200).json(0);
-      return next();
+      return sendSuccessResponse(res, HTTP_STATUS.OK, 0);
     }
 
     const completedChallenges = lesson?.challenges.filter(
       (challenge) => challenge.completed
     );
     const percentage = Math.round(
-      (completedChallenges?.length! / lesson?.challenges.length!) * 100
+      (completedChallenges?.length / lesson?.challenges.length) * 100
     );
 
-    res.status(200).json(percentage);
+    sendSuccessResponse(res, HTTP_STATUS.OK, percentage);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const reduceHeart = async (
@@ -205,70 +192,75 @@ export const reduceHeart = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-
-  if (!userId) {
-    res.sendStatus(401);
-    return next();
-  }
+  const userId: string = req.validatedParams.userId;
 
   try {
-    const currentUserProgress = await fetchUserProgress(userId);
-    const userSubscription = await fetchUserSubscription(userId);
+    const [currentUserProgress, userSubscription] = await Promise.all([
+      fetchUserProgress(userId),
+      fetchUserSubscription(userId),
+    ]);
 
     if (!currentUserProgress) {
-      res.status(404).json("User progress not found.");
-      return next();
+      throw new NotFoundError("User progress not found.");
     }
 
     if (userSubscription?.isActive) {
-      res.json({ error: "subscription" });
-      return next();
+      return sendSuccessResponse(
+        res,
+        HTTP_STATUS.OK,
+        { error: "subscription" },
+        "Subscription active"
+      );
     }
 
     if (!currentUserProgress.hearts) {
-      res.json({ error: "hearts" });
-      return next();
+      return sendSuccessResponse(
+        res,
+        HTTP_STATUS.OK,
+        { error: "hearts" },
+        "No hearts available"
+      );
     }
 
     await mutateHeartQuery(currentUserProgress, "reduce");
-    res.status(200).json("hearts reduced successfully");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "hearts reduced successfully"
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const refillHeart = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-
-  if (!userId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
+  const userId: string = req.validatedParams.userId;
 
   try {
     const currentUserProgress = await fetchUserProgress(userId);
 
     if (!currentUserProgress) {
-      res.status(404).json("User progress not found.");
-      return next();
+      throw new NotFoundError("User progress not found.");
     }
 
     if (currentUserProgress.points < POINTS_TO_REFILL) {
-      res.status(403).json("Not enough points");
-      return next();
+      return new BadRequestError("Not enough points to refill hearts");
     }
 
     await mutateHeartQuery(currentUserProgress, "refill");
-    res.status(200).json("hearts reduced successfully");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      "hearts refilled successfully"
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const getUserSubscription = async (
@@ -276,19 +268,14 @@ export const getUserSubscription = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { userId } = req.params;
-  if (!userId) {
-    res.status(404).json("missing user id");
-    return next();
-  }
+  const userId: string = req.validatedParams.userId;
 
   try {
     const userSubscription = await fetchUserSubscription(userId);
-    res.status(200).json(userSubscription);
+    sendSuccessResponse(res, HTTP_STATUS.OK, userSubscription);
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 
 export const getTopTenUsers = async (
@@ -298,10 +285,8 @@ export const getTopTenUsers = async (
 ) => {
   try {
     const data = await fetchTopTenUsers();
-    res.json(data);
+    sendSuccessResponse(res, HTTP_STATUS.OK, data);
   } catch (error) {
-    logger.error(error, "[getTopTenUsers error]");
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };

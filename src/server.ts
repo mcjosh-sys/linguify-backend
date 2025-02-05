@@ -7,8 +7,11 @@ import helmet from "helmet";
 import morgan from "morgan";
 import onFinished from "on-finished";
 import path from "path";
+import { uptime } from "process";
 import { fileURLToPath } from "url";
-import logger from "./lib/uitls/logger";
+import { formatSecondsToHHMMSS } from "./lib/utils";
+import logger from "./lib/utils/logger";
+import { errorHandler } from "./middleware/error-handler";
 import router from "./routes";
 
 dotenv.config();
@@ -16,6 +19,10 @@ dotenv.config();
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const startTime = new Date();
+let totalRequests = 0;
+let totalResponseTime = 0;
 
 const logStream = fs.createWriteStream(
   path.join(__dirname, "..", "access.log"),
@@ -44,48 +51,59 @@ app.use(
 );
 app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+app.use(morgan("combined", { stream: logStream }));
 app.use((req, _res, next) => {
   req.time = new Date();
+  totalRequests++;
   next();
 });
-app.use(morgan("combined", { stream: logStream }));
-
-app.get("/", (req, res, next) => {
-  console.log("working"), res.json("working...");
-  next();
-});
-
-app.use("/api", router);
-
 app.use((req, res, next) => {
   onFinished(res, () => {
+    const responseTime = new Date().getTime() - req.time.getTime();
+    // let upTime = new Date().getTime() - startTime.getTime()
+    totalResponseTime += responseTime;
     logger.info(
       {
         req: {
           method: req.method,
-          url: req.url,
+          url: req.originalUrl || req.url,
           headers: {
             host: req.headers.host,
-            "user-agent": req.headers["user-agent"],
+            userAgent: req.headers["user-agent"],
           },
           remoteAddress: req.ip,
         },
         res: {
           statusCode: res.statusCode,
-          header: res.header,
-          responseTime: new Date().toLocaleString(),
         },
         requestTime: req.time.toLocaleString(),
+        responseTime: new Date().toLocaleString(),
         latency: `${new Date().getTime() - req.time.getTime()} ms`,
+        totalRequests,
+        averageResponseTime: `${Math.ceil(
+          totalResponseTime / totalRequests
+        )} ms`,
+        upTime: formatSecondsToHHMMSS(uptime()),
       },
       `${req.ip} - - [${req.time.toLocaleString()}] "${req.method} ${
         req.headers["user-agent"]
       }"`
     );
   });
-
   next();
 });
+
+// app.get("/", (req, res, next) => {
+//   console.log("working");
+//   res.json("working...");
+//   next();
+// });
+
+app.use("/api", router);
+
+app.use(errorHandler);
+
+
 
 const PORT = parseInt(process.env.PORT!) || 3400;
 const server = app.listen(PORT, "0.0.0.0", () =>

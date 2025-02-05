@@ -1,11 +1,13 @@
 import {
-  checkIfPermitted,
   fetchCourseById,
   fetchUnitById,
   fetchUnits2,
   mutateUnit,
-} from "@/db/queries";
-import type { units } from "@/db/schema";
+} from "@/lib/db/queries";
+import type { units } from "@/lib/db/schema";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type { CreateUnitReqBody } from "@/schemas/unit.schema";
 import type { NextFunction, Request, Response } from "express";
 
 const unitResolver = (reqBody: any): typeof units.$inferInsert => {
@@ -28,90 +30,71 @@ export const getUnits = async (
 ) => {
   try {
     const data = await fetchUnits2();
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Units successfully retrieved."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
+
 export const getUnitById = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const unitId = parseInt(req.params.unitId);
+  const unitId: number = req.validatedParams.unitId;
 
-  if (!unitId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
   try {
     const data = await fetchUnitById(unitId);
     if (!data) {
-      res.status(404).json("Not Found");
-      return next();
+      throw new NotFoundError("Unit not found.");
     }
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Unit retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const createUnit = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-
-  if (!userId) {
-    res.status(400).json("Missing userId.");
-    return next();
-  }
-
-  const unitData = unitResolver(req.body);
-
-  if (Object.entries(unitData).some(([_, value]) => !value)) {
-    res.status(400).json("Missing information in ther request body.");
-    return next();
-  }
+  const unitData: CreateUnitReqBody = req.body;
 
   try {
     const course = await fetchCourseById(unitData.courseId);
     if (!course) {
-      res.status(400).json(`Invalid course.`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, unitData.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new BadRequestError("Invalid course id.");
     }
 
     await mutateUnit("create", { unit: unitData });
-    res.status(201).json("Unit has been created successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      {},
+      "Unit created successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const updateUnit = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const unitId = parseInt(req.params.unitId);
+  const unitId: number = req.validatedParams.unitId;
+  const unitData: CreateUnitReqBody = req.body;
 
-  if (!userId || !unitId) {
-    res.status(400).json("Missing userId or unitId.");
-    return next();
-  }
-
-  const unitData = unitResolver(req.body);
   const courseId = unitData.courseId;
 
   try {
@@ -121,55 +104,31 @@ export const updateUnit = async (
     }
     const course = await fetchCourseById(courseId || unit?.courseId!);
     if (courseId && !course) {
-      res.status(400).json(`Inavlid course.`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new BadRequestError("Invalid course id.");
     }
 
     await mutateUnit("update", { unit: unitData, unitId });
-    res.json("Unit has been updated successfully.");
+    sendSuccessResponse(res, HTTP_STATUS.OK, {}, "Unit updated successfully.");
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const deleteUnit = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const unitId = parseInt(req.params.unitId);
-
-  if (!userId || !unitId) {
-    res.status(400).json("Missing userId or unitId.");
-    return next();
-  }
+  const unitId: number = req.validatedParams.unitId;
 
   try {
     const unit = await fetchUnitById(unitId);
 
-    if (unit) {
-      const hasPermission = await checkIfPermitted(userId, unit.courseId);
-
-      if (!hasPermission) {
-        res.json({ error: "permission" });
-        return next();
-      }
-
-      await mutateUnit("delete", { unitId: unit.id });
+    if (!unit) {
+      throw new BadRequestError("Invalid unit it.");
     }
-    res.json("Unit deleted successfully.");
+    await mutateUnit("delete", { unitId: unit.id });
+    sendSuccessResponse(res, HTTP_STATUS.OK, {}, "Unit deleted successfully.");
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };

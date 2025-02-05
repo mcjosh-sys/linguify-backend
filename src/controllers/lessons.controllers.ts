@@ -1,11 +1,16 @@
 import {
-  checkIfPermitted,
   fetchLessonById,
   fetchLessons,
   fetchUnitById,
   mutateLesson,
-} from "@/db/queries";
-import type { lessons, units } from "@/db/schema";
+} from "@/lib/db/queries";
+import { lessons } from "@/lib/db/schema";
+import { BadRequestError, NotFoundError } from "@/lib/errors";
+import { HTTP_STATUS, sendSuccessResponse } from "@/lib/utils/response";
+import type {
+  CreateLessonReqBody,
+  UpdateLessonReqBody,
+} from "@/schemas/lesson.schema";
 import type { NextFunction, Request, Response } from "express";
 
 const lessonResolver = (reqBody: any): typeof lessons.$inferInsert => {
@@ -27,146 +32,121 @@ export const getLessons = async (
 ) => {
   try {
     const data = await fetchLessons();
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Lessons retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const getLessonById = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const lessonId = parseInt(req.params.lessonId);
-
-  if (!lessonId) {
-    res.status(404).json("Not Found");
-    return next();
-  }
+  const lessonId: number = req.validatedParams.lessonId;
 
   try {
     const data = await fetchLessonById(lessonId);
     if (!data) {
-      res.status(404).json("Not Found");
-      return next();
+      throw new NotFoundError("Lesson not found.");
     }
-    res.json(data);
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      data,
+      "Lesson retrieved successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error");
+    next(error);
   }
-  next();
 };
 export const createLesson = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-
-  if (!userId) {
-    res.status(400).json("Missing userId.");
-    return next();
-  }
-
-  const lessonData = lessonResolver(req.body);
-
-  if (Object.entries(lessonData).some(([_, value]) => !value)) {
-    res.status(400).json("Missing information in the request body.");
-    return next();
-  }
+  const lessonData: CreateLessonReqBody = req.body;
 
   try {
     const unit = await fetchUnitById(lessonData.unitId);
     if (!unit) {
-      res.status(400).json(`No unit with the id '${lessonData.unitId}' found.`);
-      return next();
-    }
-
-    const hasPermission = await checkIfPermitted(userId, unit.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+      throw new BadRequestError(
+        `No unit with the id '${lessonData.unitId}' found.`
+      );
     }
 
     await mutateLesson("create", { lesson: lessonData });
-    res.status(201).json("Lesson has been created successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      undefined,
+      "Lesson created successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const updateLesson = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const lessonId = parseInt(req.params.lessonId);
+  const lessonId: number = req.validatedParams.lessonId;
 
-  if (!userId || !lessonId) {
-    res.status(400).json("Missing userId or lessonId.");
-    return next();
-  }
-
-  let lessonData = lessonResolver(req.body);
+  let lessonData: UpdateLessonReqBody = req.body;
 
   try {
-    let unit: typeof units.$inferInsert | undefined;
-
-    if (lessonData.unitId) unit = await fetchUnitById(lessonData.unitId);
     const lesson = await fetchLessonById(lessonId);
 
-    if (lessonData.unitId && !unit) {
-      res.status(400).json("Invalid unit.");
-      return next();
+    if (!lesson) {
+      throw new NotFoundError("Lesson not found.");
     }
 
-    const hasPermission = await checkIfPermitted(userId, lesson?.courseId);
+    const unit = await fetchUnitById(lessonData.unitId!);
 
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (lessonData.unitId && !unit) {
+      throw new BadRequestError(
+        `No unit with the id '${lessonData.unitId}' found.`
+      );
     }
 
     await mutateLesson("update", { lesson: lessonData, lessonId });
-    res.json("Lesson has been updated successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      undefined,
+      "Lesson updated successfully."
+    );
   } catch (error) {
-    res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };
 export const deleteLesson = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.params.userId;
-  const lessonId = parseInt(req.params.lessonId);
-
-  if (!userId || !lessonId) {
-    res.status(400).json("Missing userId or lessonId.");
-    return next();
-  }
+  const lessonId: number = req.validatedParams.lessonId;
 
   try {
     const lesson = await fetchLessonById(lessonId);
 
-    const hasPermission = await checkIfPermitted(userId, lesson?.courseId);
-
-    if (!hasPermission) {
-      res.json({ error: "permission" });
-      return next();
+    if (!lesson) {
+      throw new NotFoundError("Lesson not found.");
     }
-
     await mutateLesson("delete", { lessonId });
-    res.json("Lesson has been deleted successfully.");
+    sendSuccessResponse(
+      res,
+      HTTP_STATUS.OK,
+      undefined,
+      "Lesson deleted successfully."
+    );
   } catch (error) {
     res.status(500).json("Internal Server Error.");
+    next(error);
   }
-
-  next();
 };

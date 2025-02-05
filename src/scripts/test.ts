@@ -2,8 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/neon-http";
 
-import { eq, sql } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../lib/db/schema";
 
 const provider = neon(process.env.NEON_DATABASE_URL!);
 
@@ -31,7 +30,7 @@ async function test() {
 
   const challenge = {
     lessonId: 1,
-    type: "SELECT" as "SELECT",
+    type: "SELECT" as const,
     order: 1,
     question: 'Which one of these is "the man"?',
   };
