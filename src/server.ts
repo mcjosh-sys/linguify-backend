@@ -46,7 +46,7 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGIN?.split(",") || [],
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || [],
   })
 );
 app.use(helmet());

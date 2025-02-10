@@ -29,7 +29,7 @@ export const stripeWebhook = async (
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (error: any) {
-    logger.error(`⚠️  Webhook signature verification failed.`, error.message);
+    logger.error(`⚠️  Webhook signature verification failed.`, error);
     return res.sendStatus(400);
   }
 
@@ -233,12 +233,10 @@ export const clerkWebhook = async (
       await eventHandlers[eventType]();
     } else {
       logger.warn(`Unhandled webhook event type: ${eventType}`);
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Unhandled event type: ${eventType}`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Unhandled event type: ${eventType}`,
+      });
     }
   } catch (error) {
     logger.error(`Error handling webhook event ${eventType}:`, error);
@@ -246,7 +244,7 @@ export const clerkWebhook = async (
   }
 
   logger.info(`Webhook received: ID ${payload.id}, Type ${eventType}`);
-  logger.info("Webhook body:", payload);
+  console.log("Webhook body:", payload);
 
   return res.status(200).json({ success: true, message: "Webhook received" });
 };

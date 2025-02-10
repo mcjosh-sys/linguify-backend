@@ -45,6 +45,7 @@ export const getTeam = async (
     const data = await db.query.staff.findMany({
       with: {
         user: true,
+        permissions: true,
       },
       orderBy: (staff, { desc }) => [desc(staff.role)],
       // offset: (page - 1) * limit,

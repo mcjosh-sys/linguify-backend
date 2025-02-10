@@ -156,6 +156,7 @@ export const getChallengeById = async (
 
   try {
     const data = await fetchChallengeById(challengeId);
+    console.log({data})
     if (!data) {
       throw new NotFoundError("Challenge not found.");
     }
