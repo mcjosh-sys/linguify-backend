@@ -3,7 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "nodemon",
+    "dev": "nodemon",
+    "install-bun": "curl -fsSL https://bun.sh/install | bash",
+    "build": "npm run install-bun && bun build src/server.ts --out dist/server.js",
+    "start": "bun run dist/server.js",
     "db:studio": "bunx drizzle-kit studio",
     "db:push": "bunx drizzle-kit push",
     "db:seed": "bun src/scripts/seed.ts",

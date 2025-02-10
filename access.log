@@ -5469,3 +5469,6 @@
 127.0.0.1 - - [09/Feb/2025:16:57:58 +0000] "GET /api/admin/team?page=1&limit=10 HTTP/1.1" 304 - "http://localhost:4200/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 127.0.0.1 - - [09/Feb/2025:17:11:23 +0000] "POST /api/webhooks/clerk HTTP/1.1" 400 64 "-" "Svix-Webhooks/1.56.0"
 127.0.0.1 - - [09/Feb/2025:19:14:29 +0000] "POST /api/webhooks/clerk HTTP/1.1" 400 64 "-" "Svix-Webhooks/1.56.0"
+127.0.0.1 - - [10/Feb/2025:15:03:13 +0000] "GET /api/admin/user_2iWBeeroX5IViv775WgHCFQKUzU/is-staff HTTP/1.1" 304 - "http://localhost:4200/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+127.0.0.1 - - [10/Feb/2025:15:03:13 +0000] "GET /api/admin/user_2iWBeeroX5IViv775WgHCFQKUzU/is-admin HTTP/1.1" 304 - "http://localhost:4200/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+127.0.0.1 - - [10/Feb/2025:15:03:14 +0000] "GET /api/admin/team?page=1&limit=10 HTTP/1.1" 304 - "http://localhost:4200/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"

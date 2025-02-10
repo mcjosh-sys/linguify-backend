@@ -19,15 +19,12 @@ dotenv.config();
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const startTime = new Date();
 let totalRequests = 0;
 let totalResponseTime = 0;
 
-const logStream = fs.createWriteStream(
-  path.join(__dirname, "..", "access.log"),
-  { flags: "a" }
-);
+const logStream = fs.createWriteStream(path.join("/tmp", "access.log"), {
+  flags: "a",
+});
 
 const app = express();
 
@@ -102,8 +99,6 @@ app.use((req, res, next) => {
 app.use("/api", router);
 
 app.use(errorHandler);
-
-
 
 const PORT = parseInt(process.env.PORT!) || 3400;
 const server = app.listen(PORT, "0.0.0.0", () =>
