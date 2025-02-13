@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nodemon",
     "install-bun": "curl -fsSL https://bun.sh/install | bash",
-    "build": "npm run install-bun && bun build src/server.ts --out dist/server.js",
+    "build": "bun build src/server.ts --outdir dist --target node",
     "start": "bun run dist/server.js",
     "db:studio": "bunx drizzle-kit studio",
     "db:push": "bunx drizzle-kit push",
